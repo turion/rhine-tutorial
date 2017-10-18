@@ -1,0 +1,38 @@
+\section{Setup}
+
+\note<.>{Open a console and run these commands to set up the tutorial environment.
+While you do so, I'm going to introduce you to Rhine and explain the plan for the tutorial.}
+\begin{verbatim}
+cabal update
+git clone https://github.com/turion/rhine-tutorial/
+cd rhine-tutorial
+cabal sandbox init
+cabal install --only-dependencies
+cabal configure
+cabal build
+cabal run Tutorial
+\end{verbatim}
+
+\begin{comment}
+	Introduction what Rhine can do
+	Basic vocab
+		Arrowized FRP
+		Synchronous subsystems
+		Clocks
+		Schedules
+		Resampling buffers
+		Events and behaviours
+	Comparison (differences, +, -) to
+		Yampa
+		dunai, auto, varying
+		classical FRP
+		Pipes, conduit
+	Further plan
+		Mission statement what we want to implement
+			Ideas
+				FRP zoo
+					Extra features?
+				Tea time
+					First without, then with GUI
+		Given enough time, implement audience suggestions
+\end{comment}
