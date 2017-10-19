@@ -1,11 +1,24 @@
+{-# LANGUAGE DataKinds #-}
+
+-- base
+import Control.Concurrent (threadDelay)
+import System.IO (hFlush, stdout)
+
 -- dunai
-import Control.Monad.Trans.MSF.Maybe
+import Control.Monad.Trans.MSF.Maybe (listToMaybeS, runMaybeT, MaybeT)
 
 -- rhine
-import FRP.Rhine.Clock.Count -- TODO Try
-import FRP.Rhine.Clock.Realtime.Busy
+import FRP.Rhine
 import FRP.Rhine.Clock.Realtime.Millisecond
-import FRP.Rhine.ResamplingBuffer.FIFO
+
 
 -- TODO Need to generalise the IO clocks to MonadIO
-main = runMaybeT $ flow $ listToMSF "Congratulations! You've installed the tutorial correctly!" >-> arrM putChar @@ (waitClock :: Millisecond 100)
+main :: IO ()
+main = do
+  _ <- runMaybeT $ flow mainRhine
+  return ()
+
+mainRhine :: Rhine (MaybeT IO) (LiftClock IO MaybeT (Millisecond 50)) () ()
+mainRhine =   timeless (listToMaybeS "Congratulations! You've installed the tutorial correctly!\n")
+          >-> liftS (putChar >>> (>> hFlush stdout))
+          @@  liftClock waitClock
