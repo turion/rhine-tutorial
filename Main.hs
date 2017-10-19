@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 
 -- base
-import Control.Concurrent (threadDelay)
 import System.IO (hFlush, stdout)
 
 -- dunai
