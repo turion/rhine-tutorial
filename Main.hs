@@ -63,18 +63,16 @@ testTea = Tea
   , duration = 0.2
   }
 
-oneTea :: SyncExcept IO TeaSimClock Tea () ()
-oneTea = do
-  nextTea <- currentInput
-  once_ $ putStrLn "Now brewing: " ++ show nextTea
+oneTea :: Tea -> SyncExcept IO TeaSimClock a () ()
+oneTea nextTea = do
+  -- nextTea <- currentInput
+  once_ $ putStrLn $ "Now brewing: " ++ show nextTea
   teaSort <- try $ countdownTea nextTea
   once_ $ putStrLn $ "Your " ++ teaSort ++ " is ready!"
   step $ const $ return ((), ())
 
 teas :: SyncSF IO TeaSimClock [Tea] ()
-teas =   mappendS
-     >-> mapMSF (exceptS $ runMSFExcept oneTea)
-     >-> arr (const ())
+teas = pool (exceptS . runMSFExcept . oneTea) >-> arr (const ())
 
 mainRhine :: Rhine IO (SequentialClock IO CommandClock TeaSimClock) () ()
 mainRhine
