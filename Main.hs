@@ -5,46 +5,76 @@
 {-# LANGUAGE TypeFamilies   #-}
 
 
+-- base
+import Text.Read (readMaybe)
+
+
 -- rhine
 import FRP.Rhine
 import FRP.Rhine.SyncSF.Except
 import FRP.Rhine.Clock.Realtime.Millisecond
-
-
-type TeaSimClock = Millisecond 100
-type TeaStatusClock = Millisecond 10000
-
-
--- TODO Need to generalise the IO clocks to MonadIO
-main :: IO ()
-main = flow mainRhine
-
+import FRP.Rhine.Clock.Realtime.Stdin
+import FRP.Rhine.Clock.Select
+import FRP.Rhine.Schedule.Concurrently
+import FRP.Rhine.ResamplingBuffer.KeepLast
 
 data Tea = Tea
   { teaSort  :: String -- ^ The sort, brand, type of tea
   , duration :: Double -- ^ The duration to brew in minutes
   }
+  deriving (Read, Show)
+
+
+type TeaSimClock = Millisecond 100
+type TeaStatusClock = Millisecond 10000
+
+type CommandClock = SelectClock StdinClock Tea
+commandClock :: CommandClock
+commandClock = SelectClock
+  { mainClock = StdinClock
+  , select    = readMaybe
+  }
+
+userTeas :: SyncSF IO CommandClock () Tea
+userTeas = proc _ -> do
+  tea <- timeInfoOf tag    -< ()
+  _   <- arrMSync putStrLn -< "Your request:"
+  _   <- arrMSync print    -< tea
+  returnA                  -< tea
+
 
 -- TODO Also record intermediate step where we just output a string instead of throwing an exception
 countdownTea
   :: Monad m
-  => Tea -> Behaviour (ExceptT String m) UTCTime ()
+  => Tea -> SyncSF (ExceptT String m) TeaSimClock a ()
 countdownTea Tea {..} = proc _ -> do
-  timeSoFar <- integral        -< 1 / 60 -- TODO Can we do something better like measuring the time on start
-  _         <- throwOn teaSort -< timeSoFar >= duration
+  now   <- timeInfoOf absolute -< ()
+  start <- keepFirst           -< now
+  let
+    minutesPassed = (now `diffTime` start) / 60
+    done          = (minutesPassed >= duration, teaSort)
+  _     <- throwOn'            -< done
   returnA                      -< ()
 
 testTea = Tea
-  { teaSort  = "Earl Grey"
-  , duration = 0.1
+  { teaSort  = "English Breakfast Tea"
+  , duration = 0.2
   }
 
--- TODO To make this work in a readable way, dunai should really switch to Arrow Transformer classes
-teaLoop :: SyncExcept IO TeaSimClock () () Empty
+teaLoop :: SyncExcept IO TeaSimClock Tea () Empty
 teaLoop = do
-  teaSort <- try $ countdownTea testTea
+  once_ $ putStrLn "Now brewing:"
+  nextTea <- currentInput
+  once_ $ print nextTea
+  teaSort <- try $ countdownTea nextTea
   _ <- once_ $ putStrLn $ "Your " ++ teaSort ++ " is ready!"
   teaLoop
 
-mainRhine :: Rhine IO TeaSimClock () ()
-mainRhine = safely teaLoop @@ waitClock
+mainRhine :: Rhine IO (SequentialClock IO CommandClock TeaSimClock) () ()
+mainRhine
+  =   userTeas         @@  commandClock
+  >-- keepLast testTea -@- concurrently
+  --> safely teaLoop   @@  waitClock
+
+main :: IO ()
+main = flow mainRhine
