@@ -17,6 +17,9 @@ import FRP.Rhine.Clock.Realtime.Stdin
 import FRP.Rhine.Clock.Select
 import FRP.Rhine.Schedule.Concurrently
 import FRP.Rhine.ResamplingBuffer.KeepLast
+import FRP.Rhine.ResamplingBuffer.Collect
+
+-- TODO add all imports to master?
 
 data Tea = Tea
   { teaSort  :: String -- ^ The sort, brand, type of tea
@@ -37,10 +40,9 @@ commandClock = SelectClock
 
 userTeas :: SyncSF IO CommandClock () Tea
 userTeas = proc _ -> do
-  tea <- timeInfoOf tag    -< ()
-  _   <- arrMSync putStrLn -< "Your request:"
-  _   <- arrMSync print    -< tea
-  returnA                  -< tea
+  tea <- timeInfoOf tag  -< ()
+  _   <- arrMSync putStrLn -< "Your request: " ++ show tea
+  returnA                -< tea
 
 
 -- TODO Also record intermediate step where we just output a string instead of throwing an exception
@@ -61,20 +63,24 @@ testTea = Tea
   , duration = 0.2
   }
 
-teaLoop :: SyncExcept IO TeaSimClock Tea () Empty
-teaLoop = do
-  once_ $ putStrLn "Now brewing:"
+oneTea :: SyncExcept IO TeaSimClock Tea () ()
+oneTea = do
   nextTea <- currentInput
-  once_ $ print nextTea
+  once_ $ putStrLn "Now brewing: " ++ show nextTea
   teaSort <- try $ countdownTea nextTea
-  _ <- once_ $ putStrLn $ "Your " ++ teaSort ++ " is ready!"
-  teaLoop
+  once_ $ putStrLn $ "Your " ++ teaSort ++ " is ready!"
+  step $ const $ return ((), ())
+
+teas :: SyncSF IO TeaSimClock [Tea] ()
+teas =   mappendS
+     >-> mapMSF (exceptS $ runMSFExcept oneTea)
+     >-> arr (const ())
 
 mainRhine :: Rhine IO (SequentialClock IO CommandClock TeaSimClock) () ()
 mainRhine
   =   userTeas         @@  commandClock
-  >-- keepLast testTea -@- concurrently
-  --> safely teaLoop   @@  waitClock
+  >-- collect          -@- concurrently
+  --> teas   @@  waitClock
 
 main :: IO ()
 main = flow mainRhine
