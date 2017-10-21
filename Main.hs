@@ -80,11 +80,11 @@ teaStatus = proc as -> do
   arrMSync putStrLn -< show numberOfTeas ++ " teas currently brewing"
 
 mainRhine
-  =   userTeas  @@  commandClock
-  >-- collect          -@- concurrently
-  --> teas >-> teaStatus  @@  waitClock
-{-  >-- keepLast [] -@- concurrently
-  --> teaStatus @@ waitClock
--}
+  =   userTeas    @@  commandClock
+  >-- collect     -@- concurrently
+  --> teas        @@  waitClock
+  >-- keepLast [] -@- concurrently
+  --> teaStatus   @@  waitClock
+
 main :: IO ()
 main = flow mainRhine
