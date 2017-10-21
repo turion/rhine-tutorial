@@ -6,8 +6,8 @@
 
 
 -- base
+import Data.Either (rights)
 import Text.Read (readMaybe)
-
 
 -- rhine
 import FRP.Rhine
@@ -29,7 +29,7 @@ data Tea = Tea
 
 
 type TeaSimClock = Millisecond 100
-type TeaStatusClock = Millisecond 10000
+type TeaStatusClock = Millisecond 20000
 
 type CommandClock = SelectClock StdinClock Tea
 commandClock :: CommandClock
@@ -58,7 +58,7 @@ countdownTea Tea {..} = proc _ -> do
   _     <- throwOn'            -< done
   returnA                      -< ()
 
-testTea = Tea
+exampleTea = Tea
   { teaSort  = "English Breakfast Tea"
   , duration = 0.2
   }
@@ -71,14 +71,20 @@ oneTea nextTea = do
   once_ $ putStrLn $ "Your " ++ teaSort ++ " is ready!"
   step $ const $ return ((), ())
 
-teas :: SyncSF IO TeaSimClock [Tea] ()
-teas = pool (exceptS . runMSFExcept . oneTea) >-> arr (const ())
+teas :: SyncSF IO TeaSimClock [Tea] [Either () ()]
+teas = pool $ exceptS . runMSFExcept . oneTea
 
-mainRhine :: Rhine IO (SequentialClock IO CommandClock TeaSimClock) () ()
+teaStatus :: SyncSF IO TeaStatusClock [Either () ()] ()
+teaStatus = proc as -> do
+  let numberOfTeas = length $ rights as
+  arrMSync putStrLn -< show numberOfTeas ++ " teas currently brewing"
+
 mainRhine
-  =   userTeas         @@  commandClock
+  =   userTeas  @@  commandClock
   >-- collect          -@- concurrently
-  --> teas   @@  waitClock
-
+  --> teas >-> teaStatus  @@  waitClock
+{-  >-- keepLast [] -@- concurrently
+  --> teaStatus @@ waitClock
+-}
 main :: IO ()
 main = flow mainRhine
