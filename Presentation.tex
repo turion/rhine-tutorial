@@ -35,8 +35,8 @@ cabal install --only-dependencies
 cabal configure
 cabal build
 cabal run rhine-tutorial
-<<<<<<< HEAD
 \end{verbatim}
+Read documentation on \href{http://hackage.haskell.org/package/rhine}{http://hackage.haskell.org/package/rhine} (version 0.1.0.0)!
 \end{frame}
 
 \section{Quick introduction to Rhine}
@@ -229,13 +229,11 @@ slowProcessor :: SyncSF m SlowClock    a b
 
 clockTypeError = fastSignal >>> slowProcessor
 \end{minted}
+\end{block}
 \begin{verbatim}
 PresentationExamples.hs:67:33: error:
     • Couldn't match type ‘SlowClock’ with ‘FastClock’
 \end{verbatim}
-=======
-\end{verbatim}
-Read documentation on \href{http://hackage.haskell.org/package/rhine}{http://hackage.haskell.org/package/rhine} (version 0.1.0.0)!
 \end{frame}
 
 \section{Quick introduction to Rhine}
