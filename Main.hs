@@ -25,6 +25,8 @@ import FRP.Rhine.Schedule.Concurrently
 import FRP.Rhine.ResamplingBuffer.KeepLast
 import FRP.Rhine.ResamplingBuffer.Collect
 
+-- rhine-tutorial
+import Util
 
 
 main :: IO ()
