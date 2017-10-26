@@ -1,13 +1,18 @@
-{-# LANGUAGE Arrows         #-}
-{-# LANGUAGE DataKinds      #-}
-{-# LANGUAGE RankNTypes     #-}
+{-# LANGUAGE Arrows          #-}
+{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeFamilies   #-}
+{-# LANGUAGE TypeFamilies    #-}
 
 
 -- base
+import Control.Concurrent (threadDelay)
 import Data.Either (rights)
+import System.IO (hFlush, stdout)
 import Text.Read (readMaybe)
+
+-- dunai
+import Control.Monad.Trans.MSF.Maybe (runMaybeT, MaybeT, exit)
 
 -- rhine
 import FRP.Rhine
@@ -22,7 +27,6 @@ import FRP.Rhine.ResamplingBuffer.Collect
 -- rhine-tutorial
 import Util
 
--- TODO add all imports to master?
 
 data Tea = Tea
   { teaSort  :: String -- ^ The sort, brand, type of tea

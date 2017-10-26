@@ -1,5 +1,29 @@
+\documentclass[handout]{enigtex-beamer-base}
+
+\useoutertheme{miniframes}
+
+
+\usepackage{comment}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+\usepackage{minted}
+
+\title{Rhine - FRP with type level clocks}
+
+\subtitle{A tea tutorial}
+
+\author{Manuel Bärenz}
+
+\begin{document}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
 \section{Setup}
 
+\begin{frame}[fragile]
 \note<.>{Open a console and run these commands to set up the tutorial environment.
 While you do so, I'm going to introduce you to Rhine and explain the plan for the tutorial.}
 \begin{verbatim}
@@ -10,8 +34,511 @@ cabal sandbox init
 cabal install --only-dependencies
 cabal configure
 cabal build
-cabal run Tutorial
+cabal run rhine-tutorial
 \end{verbatim}
+Read documentation on \href{http://hackage.haskell.org/package/rhine}{http://hackage.haskell.org/package/rhine} (version 0.1.0.0)!
+\end{frame}
+
+\section{Quick introduction to Rhine}
+
+\subsection{Synchronous arrowized FRP}
+
+\begin{frame}[fragile]
+\begin{block}<+->{\texttt{Dunai} (Iván Pérez, Henrik Nilsson, MB)}
+\begin{minted}{haskell}
+data MSF m a b = MSF (a -> m (b, MSF m a b))
+\end{minted}
+\end{block}
+\begin{block}<+->{}
+\begin{minted}{haskell}
+-- Control.Arrow
+(>>>) :: MSF m a b -> MSF m b c -> MSF m a c
+(***) :: MSF m a b -> MSF m c d -> MSF m (a,c) (b,d)
+arr :: (a -> b) -> MSF m a b
+\end{minted}
+\end{block}
+\begin{block}<+->{}
+\begin{minted}{haskell}
+-- only dunai
+arrM :: (a -> m b) -> MSF m a b
+\end{minted}
+\end{block}
+\begin{itemize}[<+->]
+	\item \mintinline{haskell}{MSF (Reader Double)} is a replacement for \texttt{Yampa}.
+	\item Other monads allow for concise FRP paradigms:
+		\begin{itemize}[<+->]
+			\item \mintinline{haskell}{State}, \mintinline{haskell}{Reader} and \mintinline{haskell}{Writer} give global state variables.
+			\item \mintinline{haskell}{List} gives branching computations.
+			\item \mintinline{haskell}{Either} gives control flow!
+		\end{itemize}
+	\item Support for (entering and leaving) monad transformers.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{block}<+->{Arrow syntax}
+\begin{minted}{haskell}
+{-# LANGUAGE Arrows #-}
+
+verboseSum :: MSF IO Int Int
+verboseSum = proc n -> do
+  s <- sumS       -< n
+  _ <- arrM print -< "The sum is now " ++ show s
+  returnA         -< s
+\end{minted}
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+	% TODO Copy from abstract
+	\begin{description}[<+->]
+		\item[Clock type] Describes when, and how often,
+		the clock should tick.
+		\item[Clock value] Implementation details
+		\begin{itemize}[<+->]
+			\item E.g. physical device address
+			\item Implementation choice
+		\end{itemize}
+		\item[Running clock] Side-effectful stream of \emph{time stamps}, tagged with additional info about the \emph{tick}.
+	\end{description}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\begin{block}<+->{\texttt{Rhine}}
+\begin{minted}{haskell}
+-- simplified here
+class Clock m cl where
+  type TimeDomainOf cl -- time stamp
+  type Tag cl -- additional information about tick
+  startClock :: cl -> MSF m () (TimeInfo cl, Tag cl)
+\end{minted}
+\end{block}
+
+\begin{block}<+->{}
+\begin{minted}{haskell}
+data TimeInfo cl = {...}
+  -- absolute and relative time, tag
+\end{minted}
+\end{block}
+\note<.>{While a clock only needs to output a time stamp,
+\texttt{Rhine} calculates absolute and relative (to the start of the program and to the last tick) time.}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\visible<+->{A clock produces side effects to...}
+\begin{itemize}
+	\item[...] wait between ticks,
+	\item[...] measure the current time,
+	\item[...] produce additional data (e.g. events).
+\end{itemize}
+
+\begin{block}<+->{Examples of clocks}
+\begin{itemize}
+	\item Fixed sample rate (e.g. \mintinline{haskell}{Millisecond n})
+	\item Events (e.g. \mintinline{haskell}{Stdin})
+\end{itemize}
+\end{block}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\begin{block}<+->{}
+\begin{minted}{haskell}
+type SyncSF m cl a b = MSF (ReaderT (TimeInfo cl)) a b
+\end{minted}
+\end{block}
+\begin{block}<+->{Lifting \texttt{dunai} concepts}
+\begin{minted}{haskell}
+arrMSync :: (a -> m b) -> SyncSF m cl a b
+\end{minted}
+\end{block}
+\begin{block}<+->{Time information}
+\begin{minted}{haskell}
+timeInfo :: SyncSF m cl () (TimeInfo cl)
+\end{minted}
+\end{block}
+\begin{block}<+->{Basic signal processing}
+\begin{minted}{haskell}
+integral :: VectorSpace v => SyncSF m cl v v
+\end{minted}
+\end{block}
+\end{frame}
+
+\subsection{Exceptions and control flow}
+
+\begin{frame}[fragile]
+\begin{block}<+->{\mintinline{haskell}{ExceptT}...}
+\begin{minted}{haskell}
+--base, transformers
+data Either e a = Left e | Right a
+newtype ExceptT e m a = ExceptT (m (Either e a))
+\end{minted}
+\end{block}
+
+\begin{block}<+->{...control flow! (Thanks to Paolo Capriotti)}
+\begin{minted}{haskell}
+-- dunai, rhine (simplified)
+newtype SyncExcept m cl a b e
+  = SyncExcept (SyncSF (ExceptT e m) cl a b)
+\end{minted}
+\end{block}
+
+\begin{block}<+->{}
+\begin{minted}{haskell}
+instance Monad m => Monad (SyncExcept m cl a b)
+
+throwOn' :: SyncSF (ExceptT e m) cl (Bool, e) ()
+try :: SyncSF (ExceptT e m) cl a b
+    -> SyncExcept m cl a b e
+safely :: SyncExcept m cl a b Empty -> SyncSF m cl a b
+safe :: SyncSF m cl a b -> SyncExcept m cl a b e
+\end{minted}
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{block}<+->{Hello World!}
+\begin{minted}{haskell}
+type SumClock = Millisecond 100
+
+fillUp :: SyncSF (ExceptT Double m) SumClock Double ()
+fillUp = proc x -> do
+  s <- integral -< x
+  _ <- throwOn' -< (s > 5, s)
+  returnA       -< ()
+
+helloWorld :: SyncExcept IO SumClock () () Empty
+helloWorld = do
+  try $ arr (const 1) >>> fillUp
+  once_ $ putStrLn "Hello World!"
+  helloWorld
+
+main = flow $ safely helloWorld @@ waitClock
+\end{minted}
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{block}{Clock safety}
+\begin{minted}{haskell}
+fastSignal    :: SyncSF m FastClock () a
+
+slowProcessor :: SyncSF m SlowClock    a b
+
+clockTypeError = fastSignal >>> slowProcessor
+\end{minted}
+\end{block}
+\begin{verbatim}
+PresentationExamples.hs:67:33: error:
+    • Couldn't match type ‘SlowClock’ with ‘FastClock’
+\end{verbatim}
+\end{frame}
+
+\section{Quick introduction to Rhine}
+
+\subsection{Synchronous arrowized FRP}
+
+\begin{frame}[fragile]
+\begin{block}<+->{\texttt{Dunai} (Iván Pérez, Henrik Nilsson, MB)}
+\begin{minted}{haskell}
+data MSF m a b = MSF (a -> m (b, MSF m a b))
+\end{minted}
+\end{block}
+\begin{block}<+->{}
+\begin{minted}{haskell}
+-- Control.Arrow
+(>>>) :: MSF m a b -> MSF m b c -> MSF m a c
+(***) :: MSF m a b -> MSF m c d -> MSF m (a,c) (b,d)
+arr :: (a -> b) -> MSF m a b
+\end{minted}
+\end{block}
+\begin{block}<+->{}
+\begin{minted}{haskell}
+-- only dunai
+arrM :: (a -> m b) -> MSF m a b
+\end{minted}
+\end{block}
+\begin{itemize}[<+->]
+	\item \mintinline{haskell}{MSF (Reader Double)} is a replacement for \texttt{Yampa}.
+	\item Other monads allow for concise FRP paradigms:
+		\begin{itemize}[<+->]
+			\item \mintinline{haskell}{State}, \mintinline{haskell}{Reader} and \mintinline{haskell}{Writer} give global state variables.
+			\item \mintinline{haskell}{List} gives branching computations.
+			\item \mintinline{haskell}{Either} gives control flow!
+		\end{itemize}
+	\item Support for (entering and leaving) monad transformers.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{block}<+->{Arrow syntax}
+\begin{minted}{haskell}
+{-# LANGUAGE Arrows #-}
+
+verboseSum :: MSF IO Int Int
+verboseSum = proc n -> do
+  s <- sumS       -< n
+  _ <- arrM print -< "The sum is now " ++ show s
+  returnA         -< s
+\end{minted}
+\end{block}
+\end{frame}
+
+\subsection{Clocks}
+
+\begin{frame}[fragile]
+	% TODO Copy from abstract
+	\begin{description}[<+->]
+		\item[Clock type] All relevant properties of the clock, such as ...
+		\begin{itemize}[<+->]
+			\item When, and how often, the clock should tick
+			\item Which monad the clock takes side effects in
+			\item What additional data (besides a time stamp) the clock outputs
+		\end{itemize}
+		\item[Clock value] All information needed to run the clock
+		\begin{itemize}[<+->]
+			\item E.g. physical device address, event socket
+			\item Implementation choice
+		\end{itemize}
+		\item[Running clock] Side-effectful stream of \emph{time stamps}, tagged with additional info about the \emph{tick}.
+	\end{description}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\begin{block}<+->{\texttt{Rhine}}
+\begin{minted}{haskell}
+-- simplified here
+class Clock m cl where
+  type TimeDomainOf cl -- time stamp
+  type Tag cl -- additional information about tick
+  startClock :: cl -> MSF m () (TimeInfo cl, Tag cl)
+\end{minted}
+\end{block}
+
+\begin{block}<+->{}
+\begin{minted}{haskell}
+data TimeInfo cl = {...}
+  -- absolute and relative time, tag
+\end{minted}
+\end{block}
+\note<.>{While a clock only needs to output a time stamp,
+\texttt{Rhine} calculates absolute and relative (to the start of the program and to the last tick) time.}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\visible<+->{A clock produces side effects to...}
+\begin{itemize}
+	\item[...] wait between ticks,
+	\item[...] measure the current time,
+	\item[...] produce additional data (e.g. events).
+\end{itemize}
+
+\begin{block}<+->{Examples of clocks}
+\begin{itemize}
+	\item Fixed sample rate (e.g. \mintinline{haskell}{Millisecond n})
+	\item Events (e.g. \mintinline{haskell}{Stdin})
+\end{itemize}
+\end{block}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\begin{block}<+->{}
+\begin{minted}{haskell}
+type SyncSF m cl a b = MSF (ReaderT (TimeInfo cl)) a b
+\end{minted}
+\end{block}
+\begin{block}<+->{Lifting \texttt{dunai} concepts}
+\begin{minted}{haskell}
+arrMSync :: (a -> m b) -> SyncSF m cl a b
+\end{minted}
+\end{block}
+\begin{block}<+->{Time information}
+\begin{minted}{haskell}
+timeInfo :: SyncSF m cl () (TimeInfo cl)
+\end{minted}
+\end{block}
+\begin{block}<+->{Basic signal processing}
+\begin{minted}{haskell}
+integral :: VectorSpace v => SyncSF m cl v v
+\end{minted}
+\end{block}
+\end{frame}
+
+\subsection{Exceptions and control flow}
+
+\begin{frame}[fragile]
+\begin{block}<+->{\mintinline{haskell}{ExceptT}...}
+\begin{minted}{haskell}
+--base, transformers
+data Either e a = Left e | Right a
+newtype ExceptT e m a = ExceptT (m (Either e a))
+\end{minted}
+\end{block}
+
+\begin{block}<+->{...control flow! (Thanks to Paolo Capriotti)}
+\begin{minted}{haskell}
+-- dunai, rhine (simplified)
+newtype SyncExcept m cl a b e
+  = SyncExcept (SyncSF (ExceptT e m) cl a b)
+\end{minted}
+\end{block}
+
+\begin{block}<+->{}
+\begin{minted}{haskell}
+instance Monad m => Monad (SyncExcept m cl a b)
+
+throwOn' :: SyncSF (ExceptT e m) cl (Bool, e) ()
+try :: SyncSF (ExceptT e m) cl a b
+    -> SyncExcept m cl a b e
+safely :: SyncExcept m cl a b Empty -> SyncSF m cl a b
+safe :: SyncSF m cl a b -> SyncExcept m cl a b e
+\end{minted}
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{block}<+->{Hello World!}
+\begin{minted}{haskell}
+type SumClock = Millisecond 100
+
+fillUp :: SyncSF (ExceptT Double m) SumClock Double ()
+fillUp = proc x -> do
+  s <- integral -< x
+  _ <- throwOn' -< (s > 5, s)
+  returnA       -< ()
+
+helloWorld :: SyncExcept IO SumClock () () Empty
+helloWorld = do
+  try $ arr (const 1) >>> fillUp
+  once_ $ putStrLn "Hello World!"
+  helloWorld
+
+main = flow $ safely helloWorld @@ waitClock
+\end{minted}
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{block}{Clock safety}
+\begin{minted}{haskell}
+fastSignal    :: SyncSF m FastClock () a
+
+slowProcessor :: SyncSF m SlowClock    a b
+
+clockTypeError = fastSignal >>> slowProcessor
+\end{minted}
+\begin{verbatim}
+PresentationExamples.hs:67:33: error:
+    • Couldn't match type ‘SlowClock’ with ‘FastClock’
+\end{verbatim}
+\end{block}
+\end{frame}
+
+\subsection{Asynchronous FRP}
+
+\begin{frame}[fragile]
+\begin{block}<+->{}
+\begin{minted}{haskell}
+data Schedule m cl1 cl2
+\end{minted}
+\end{block}
+	\begin{block}<+->{Binary schedules}
+		Execute two different clocks simultaneously.
+	\end{block}
+	\begin{itemize}[<+->]
+		\item Can be clock-polymorphic or specific to certain clocks.
+		\item (No implementation details here.)
+		\item Some examples:
+		\begin{itemize}[<+->]
+			\item \mintinline{haskell}{concurrently :: Schedule IO cl1 cl2}
+			\item \mintinline{haskell}{schedule :: Schedule (ScheduleT m) cl1 cl2}
+		\end{itemize}
+	\end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\begin{block}<+->{}
+\begin{minted}{haskell}
+data ResamplingBuffer m cla clb a b = ResamplingBuffer
+  { put :: TimeInfo cla -> a
+        -> m (   ResamplingBuffer m cla clb a b)
+  , get :: TimeInfo clb
+        -> m (b, ResamplingBuffer m cla clb a b)
+  }
+\end{minted}
+\end{block}
+\begin{block}<+->{Resampling buffers}
+Buffer data at the boundary between two asynchronous systems.
+\end{block}
+	\begin{itemize}[<+->]
+		\item Can be clock-polymorphic or specific to certain clocks.
+		\item Some examples
+		\begin{itemize}[<+->]
+			\item \mintinline{haskell}{collect :: ResamplingBuffer m cl1 cl2 a [a]}
+			\item \mintinline{haskell}{fifo :: ResamplingBuffer m cl1 cl2 a (Maybe a)}
+			\item \mintinline{haskell}{keepLast :: a -> ResamplingBuffer m cl1 cl2 a a}
+			\item Linear interpolation, combinators to build your own\dots
+		\end{itemize}
+	\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{block}<+->{Asynchronous signal functions}
+\begin{minted}{haskell}
+data SF m cl a b
+type family Leftmost cl
+type family Rightmost cl
+\end{minted}
+\end{block}
+\begin{block}<+->{A clocked reactive program}
+\begin{minted}{haskell}
+data Rhine m cl a b
+\end{minted}
+(...basically an \mintinline{haskell}{SF} and a matching clock!)
+\end{block}
+\begin{block}<+->{Execution (reactimation)}
+\begin{minted}{haskell}
+flow :: Rhine m cl () () -> m ()
+\end{minted}
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{block}<+->{Synchronous subsystems}
+\begin{minted}{haskell}
+cl :: MyClock
+syncsf :: SyncSF m MyClock A B
+rhineSync :: Rhine m MyClock A B
+rhineSync = syncsf @@ cl
+\end{minted}
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{block}<+->{Parallel composition}
+\begin{minted}{haskell}
+clL :: MyClockL
+clR :: MyClockR
+syncsfL :: SyncSF m MyClockL C D
+syncsfR :: SyncSF m MyClockR C D
+schedPar :: Schedule m MyClockL MyClockR
+rhinePar = syncsfL @@ clL **@ schedPar @** syncsfR @@ clR
+\end{minted}
+\end{block}
+\begin{block}<+->{Sequential composition}
+\begin{minted}{haskell}
+buf :: ResamplingBuffer m MyClock (Leftmost (..)) B C
+schedSeq :: Schedule m ...
+rhineSeq = rhineSync >-- buf -@- schedSeq --> rhineP
+\end{minted}
+\end{block}
+\end{frame}
 
 \begin{comment}
 	Introduction what Rhine can do
@@ -36,3 +563,72 @@ cabal run Tutorial
 					First without, then with GUI
 		Given enough time, implement audience suggestions
 \end{comment}
+
+\section{Let's hack!}
+
+\begin{frame}
+\begin{block}<+->{The plan: A tea app}
+	\begin{itemize}
+		\item Run several tea timers in parallel
+		\item Reactively read tea requests from the console
+	\end{itemize}
+\end{block}
+\visible<+->{\textbf{Any questions before we start hacking?}}
+\end{frame}
+
+\begin{frame}
+\textbf{Have fun!}
+\end{frame}
+
+\section{After the tutorial}
+
+\begin{frame}
+	\begin{block}<+->{What else you could (easily) do with \texttt{Dunai} and \texttt{Rhine}}
+		\begin{itemize}
+			\item Simple arcade games
+			\item Reactive console apps
+		\end{itemize}
+	\end{block}
+	\begin{block}<+->{What should be doable, but I didn't do yet because of lazyness}
+		\begin{itemize}
+			\item Webservers
+			\item Interactive File I/O
+			\item GUI programs
+		\end{itemize}
+	\end{block}
+	\begin{block}<+->{What might eventually be feasible}
+		\begin{itemize}
+			\item Reactive audio synthesis, processing and analysis (performance...)
+			\item Reactive web apps (GHCJS...)
+			\item Android, embedded systems (recent GHC...)
+		\end{itemize}
+	\end{block}
+\end{frame}
+
+\begin{frame}
+	\begin{block}<+->{More information}
+		\begin{itemize}
+			\item \texttt{Dunai}
+			\begin{itemize}
+				\item  \href{https://github.com/ivanperez-keera/dunai}{github.com/ivanperez-keera/dunai}
+				\item There's a link to the article!
+			\end{itemize}
+			\item \texttt{Rhine}
+			\begin{itemize}
+				\item \href{https://github.com/turion/rhine-tutorial/}{github.com/turion/rhine-tutorial/}
+				\item Checkout branch \texttt{final} for solutions
+				\item Documentation on hackage
+				\item Simple examples in \href{https://github.com/turion/rhine/}{github.com/turion/rhine/}
+			\end{itemize}
+		\end{itemize}
+	\end{block}
+	\begin{block}<+->{What you can do}
+		\begin{itemize}
+			\item Use \texttt{Rhine} at the hackathon and win a bar of chocolate!
+			\item Create issues on \href{https://github.com/turion/rhine/}{github.com/turion/rhine/} and ask for your most needed clocks, schedules, resampling buffers etc.!
+			\item Look at easy to solve issues on \href{https://github.com/ivanperez-keera/dunai}{github.com/ivanperez-keera/dunai}!
+		\end{itemize}
+	\end{block}
+\end{frame}
+
+\end{document}
