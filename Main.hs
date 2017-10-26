@@ -7,11 +7,13 @@
 
 -- base
 import Control.Concurrent (threadDelay)
+import Data.Either (rights)
 import System.IO (hFlush, stdout)
 import Text.Read (readMaybe)
 
 -- dunai
 import Control.Monad.Trans.MSF.Maybe (runMaybeT, MaybeT, exit)
+
 
 -- rhine
 import FRP.Rhine
@@ -21,6 +23,7 @@ import FRP.Rhine.Clock.Realtime.Stdin
 import FRP.Rhine.Clock.Select
 import FRP.Rhine.Schedule.Concurrently
 import FRP.Rhine.ResamplingBuffer.KeepLast
+import FRP.Rhine.ResamplingBuffer.Collect
 
 
 
