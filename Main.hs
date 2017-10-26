@@ -1,11 +1,13 @@
-{-# LANGUAGE Arrows         #-}
-{-# LANGUAGE DataKinds      #-}
-{-# LANGUAGE RankNTypes     #-}
+{-# LANGUAGE Arrows          #-}
+{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeFamilies   #-}
+{-# LANGUAGE TypeFamilies    #-}
 
 
 -- base
+import Control.Concurrent (threadDelay)
+import System.IO (hFlush, stdout)
 import Text.Read (readMaybe)
 
 
@@ -17,6 +19,7 @@ import FRP.Rhine.Clock.Realtime.Stdin
 import FRP.Rhine.Clock.Select
 import FRP.Rhine.Schedule.Concurrently
 import FRP.Rhine.ResamplingBuffer.KeepLast
+
 
 data Tea = Tea
   { teaSort  :: String -- ^ The sort, brand, type of tea
