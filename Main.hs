@@ -19,6 +19,9 @@ import FRP.Rhine.Schedule.Concurrently
 import FRP.Rhine.ResamplingBuffer.KeepLast
 import FRP.Rhine.ResamplingBuffer.Collect
 
+-- rhine-tutorial
+import Util
+
 -- TODO add all imports to master?
 
 data Tea = Tea

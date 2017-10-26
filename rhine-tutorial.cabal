@@ -17,7 +17,7 @@ cabal-version:       >= 1.10
 
 executable rhine-tutorial
   main-is:             Main.hs
-  -- other-modules:
+  other-modules:       Util
   -- other-extensions:
   build-depends:       base         >= 4.8     && < 5
                     ,  dunai        == 0.1.2.*
