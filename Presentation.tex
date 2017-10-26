@@ -427,6 +427,209 @@ slowProcessor :: SyncSF m SlowClock    a b
 
 clockTypeError = fastSignal >>> slowProcessor
 \end{minted}
+\end{block}
+\begin{verbatim}
+PresentationExamples.hs:67:33: error:
+    • Couldn't match type ‘SlowClock’ with ‘FastClock’
+\end{verbatim}
+\end{frame}
+
+\section{Quick introduction to Rhine}
+
+\subsection{Synchronous arrowized FRP}
+
+\begin{frame}[fragile]
+\begin{block}<+->{\texttt{Dunai} (Iván Pérez, Henrik Nilsson, MB)}
+\begin{minted}{haskell}
+data MSF m a b = MSF (a -> m (b, MSF m a b))
+\end{minted}
+\end{block}
+\begin{block}<+->{}
+\begin{minted}{haskell}
+-- Control.Arrow
+(>>>) :: MSF m a b -> MSF m b c -> MSF m a c
+(***) :: MSF m a b -> MSF m c d -> MSF m (a,c) (b,d)
+arr :: (a -> b) -> MSF m a b
+\end{minted}
+\end{block}
+\begin{block}<+->{}
+\begin{minted}{haskell}
+-- only dunai
+arrM :: (a -> m b) -> MSF m a b
+\end{minted}
+\end{block}
+\begin{itemize}[<+->]
+	\item \mintinline{haskell}{MSF (Reader Double)} is a replacement for \texttt{Yampa}.
+	\item Other monads allow for concise FRP paradigms:
+		\begin{itemize}[<+->]
+			\item \mintinline{haskell}{State}, \mintinline{haskell}{Reader} and \mintinline{haskell}{Writer} give global state variables.
+			\item \mintinline{haskell}{List} gives branching computations.
+			\item \mintinline{haskell}{Either} gives control flow!
+		\end{itemize}
+	\item Support for (entering and leaving) monad transformers.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{block}<+->{Arrow syntax}
+\begin{minted}{haskell}
+{-# LANGUAGE Arrows #-}
+
+verboseSum :: MSF IO Int Int
+verboseSum = proc n -> do
+  s <- sumS       -< n
+  _ <- arrM print -< "The sum is now " ++ show s
+  returnA         -< s
+\end{minted}
+\end{block}
+\end{frame}
+
+\subsection{Clocks}
+
+\begin{frame}[fragile]
+	% TODO Copy from abstract
+	\begin{description}[<+->]
+		\item[Clock type] All relevant properties of the clock, such as ...
+		\begin{itemize}[<+->]
+			\item When, and how often, the clock should tick
+			\item Which monad the clock takes side effects in
+			\item What additional data (besides a time stamp) the clock outputs
+		\end{itemize}
+		\item[Clock value] All information needed to run the clock
+		\begin{itemize}[<+->]
+			\item E.g. physical device address, event socket
+			\item Implementation choice
+		\end{itemize}
+		\item[Running clock] Side-effectful stream of \emph{time stamps}, tagged with additional info about the \emph{tick}.
+	\end{description}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\begin{block}<+->{\texttt{Rhine}}
+\begin{minted}{haskell}
+-- simplified here
+class Clock m cl where
+  type TimeDomainOf cl -- time stamp
+  type Tag cl -- additional information about tick
+  startClock :: cl -> MSF m () (TimeInfo cl, Tag cl)
+\end{minted}
+\end{block}
+
+\begin{block}<+->{}
+\begin{minted}{haskell}
+data TimeInfo cl = {...}
+  -- absolute and relative time, tag
+\end{minted}
+\end{block}
+\note<.>{While a clock only needs to output a time stamp,
+\texttt{Rhine} calculates absolute and relative (to the start of the program and to the last tick) time.}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\visible<+->{A clock produces side effects to...}
+\begin{itemize}
+	\item[...] wait between ticks,
+	\item[...] measure the current time,
+	\item[...] produce additional data (e.g. events).
+\end{itemize}
+
+\begin{block}<+->{Examples of clocks}
+\begin{itemize}
+	\item Fixed sample rate (e.g. \mintinline{haskell}{Millisecond n})
+	\item Events (e.g. \mintinline{haskell}{Stdin})
+\end{itemize}
+\end{block}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\begin{block}<+->{}
+\begin{minted}{haskell}
+type SyncSF m cl a b = MSF (ReaderT (TimeInfo cl)) a b
+\end{minted}
+\end{block}
+\begin{block}<+->{Lifting \texttt{dunai} concepts}
+\begin{minted}{haskell}
+arrMSync :: (a -> m b) -> SyncSF m cl a b
+\end{minted}
+\end{block}
+\begin{block}<+->{Time information}
+\begin{minted}{haskell}
+timeInfo :: SyncSF m cl () (TimeInfo cl)
+\end{minted}
+\end{block}
+\begin{block}<+->{Basic signal processing}
+\begin{minted}{haskell}
+integral :: VectorSpace v => SyncSF m cl v v
+\end{minted}
+\end{block}
+\end{frame}
+
+\subsection{Exceptions and control flow}
+
+\begin{frame}[fragile]
+\begin{block}<+->{\mintinline{haskell}{ExceptT}...}
+\begin{minted}{haskell}
+--base, transformers
+data Either e a = Left e | Right a
+newtype ExceptT e m a = ExceptT (m (Either e a))
+\end{minted}
+\end{block}
+
+\begin{block}<+->{...control flow! (Thanks to Paolo Capriotti)}
+\begin{minted}{haskell}
+-- dunai, rhine (simplified)
+newtype SyncExcept m cl a b e
+  = SyncExcept (SyncSF (ExceptT e m) cl a b)
+\end{minted}
+\end{block}
+
+\begin{block}<+->{}
+\begin{minted}{haskell}
+instance Monad m => Monad (SyncExcept m cl a b)
+
+throwOn' :: SyncSF (ExceptT e m) cl (Bool, e) ()
+try :: SyncSF (ExceptT e m) cl a b
+    -> SyncExcept m cl a b e
+safely :: SyncExcept m cl a b Empty -> SyncSF m cl a b
+safe :: SyncSF m cl a b -> SyncExcept m cl a b e
+\end{minted}
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{block}<+->{Hello World!}
+\begin{minted}{haskell}
+type SumClock = Millisecond 100
+
+fillUp :: SyncSF (ExceptT Double m) SumClock Double ()
+fillUp = proc x -> do
+  s <- integral -< x
+  _ <- throwOn' -< (s > 5, s)
+  returnA       -< ()
+
+helloWorld :: SyncExcept IO SumClock () () Empty
+helloWorld = do
+  try $ arr (const 1) >>> fillUp
+  once_ $ putStrLn "Hello World!"
+  helloWorld
+
+main = flow $ safely helloWorld @@ waitClock
+\end{minted}
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+\begin{block}{Clock safety}
+\begin{minted}{haskell}
+fastSignal    :: SyncSF m FastClock () a
+
+slowProcessor :: SyncSF m SlowClock    a b
+
+clockTypeError = fastSignal >>> slowProcessor
+\end{minted}
 \begin{verbatim}
 PresentationExamples.hs:67:33: error:
     • Couldn't match type ‘SlowClock’ with ‘FastClock’
