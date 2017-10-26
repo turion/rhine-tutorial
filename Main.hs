@@ -1,18 +1,29 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE Arrows          #-}
+{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE RankNTypes      #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies    #-}
+
 
 -- base
 import Control.Concurrent (threadDelay)
 import System.IO (hFlush, stdout)
+import Text.Read (readMaybe)
 
 -- dunai
 import Control.Monad.Trans.MSF.Maybe (runMaybeT, MaybeT, exit)
 
 -- rhine
 import FRP.Rhine
+import FRP.Rhine.SyncSF.Except
 import FRP.Rhine.Clock.Realtime.Millisecond
+import FRP.Rhine.Clock.Realtime.Stdin
+import FRP.Rhine.Clock.Select
+import FRP.Rhine.Schedule.Concurrently
+import FRP.Rhine.ResamplingBuffer.KeepLast
 
 
--- TODO Need to generalise the IO clocks to MonadIO
+
 main :: IO ()
 main = do
   _ <- runMaybeT $ flow mainRhine
