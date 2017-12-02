@@ -14,7 +14,7 @@ import Text.Read (readMaybe)
 
 -- rhine
 import FRP.Rhine
-import FRP.Rhine.SyncSF.Except
+import FRP.Rhine.SyncSF.Except hiding (keepFirst)
 import FRP.Rhine.Clock.Realtime.Millisecond
 import FRP.Rhine.Clock.Realtime.Stdin
 import FRP.Rhine.Clock.Select
