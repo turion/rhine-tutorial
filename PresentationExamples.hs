@@ -51,11 +51,13 @@ data FastClock = FastClock
 instance Clock m FastClock where
   type TimeDomainOf FastClock = ()
   type Tag          FastClock = ()
+  startClock = undefined
 
 data SlowClock = SlowClock
 instance Clock m SlowClock where
   type TimeDomainOf SlowClock = ()
   type Tag          SlowClock = ()
+  startClock = undefined
 
 fastSignal :: SyncSF m FastClock () a
 fastSignal = undefined
