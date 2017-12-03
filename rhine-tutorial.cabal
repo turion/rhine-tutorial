@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                rhine-tutorial
-version:             0.1.2.0
+version:             0.3.0.0
 -- synopsis:
 -- description:
 license:             BSD3
