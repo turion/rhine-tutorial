@@ -1,11 +1,11 @@
 module Util where
 
--- dunai
+import Control.Monad.Fail-- dunai
 import Control.Monad.Trans.MSF.Except
 import Data.MonadicStreamFunction
 
 -- | Accumulates inputs and starts an MSF for each of them
-pool :: Monad m => (a -> MSF m () b) -> MSF m [a] [b]
+pool :: MonadFail m => (a -> MSF m () b) -> MSF m [a] [b]
 pool f = pool' f []
   where
     pool' :: Monad m => (a -> MSF m () b) -> [MSF m () b] -> MSF m [a] [b]
@@ -15,7 +15,7 @@ pool f = pool' f []
       return (bs, pool' f msfs')
 
 -- | Remembers and indefinitely outputs the first input value.
-keepFirst :: Monad m => MSF m a a
+keepFirst :: MonadFail m => MSF m a a
 keepFirst = safely $ do
   a <- try throwS
   safe $ arr $ const a
