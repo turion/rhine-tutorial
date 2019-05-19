@@ -7,6 +7,7 @@
 
 -- base
 import Control.Concurrent (threadDelay)
+import Control.Monad.Fail
 import Data.Either (rights)
 import System.IO (hFlush, stdout)
 import Text.Read (readMaybe)
@@ -17,7 +18,7 @@ import Control.Monad.Trans.MSF.Maybe (runMaybeT, MaybeT, exit)
 
 -- rhine
 import FRP.Rhine
-import FRP.Rhine.SyncSF.Except
+import FRP.Rhine.ClSF.Except
 import FRP.Rhine.Clock.Realtime.Millisecond
 import FRP.Rhine.Clock.Realtime.Stdin
 import FRP.Rhine.Clock.Select
@@ -41,5 +42,5 @@ mainRhine =   timeless (listToMaybeS "Congratulations! You've installed the tuto
 
 
 -- TODO In dunai 0.1.2
-listToMaybeS :: Monad m => [b] -> MSF (MaybeT m) a b
+listToMaybeS :: MonadFail m => [b] -> MSF (MaybeT m) a b
 listToMaybeS = foldr iPost exit
