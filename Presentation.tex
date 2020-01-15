@@ -116,9 +116,9 @@ verboseSum = proc n -> do
 \begin{minted}{haskell}
 -- simplified here
 class Clock m cl where
-  type TimeDomainOf cl -- time stamp
+  type Time cl -- time stamp
   type Tag cl -- additional information about tick
-  startClock :: cl -> MSF m () (TimeInfo cl, Tag cl)
+  initClock :: cl -> MSF m () (TimeInfo cl, Tag cl)
 \end{minted}
 \end{block}
 
@@ -153,23 +153,23 @@ data TimeInfo cl = {...}
 \begin{frame}[fragile]
 \begin{block}<+->{}
 \begin{minted}{haskell}
-type SyncSF m cl a b = MSF (ReaderT (TimeInfo cl) m) a b
+type ClSF m cl a b = MSF (ReaderT (TimeInfo cl) m) a b
 \end{minted}
 \end{block}
 \begin{block}<+->{Lifting \texttt{dunai} concepts}
 \begin{minted}{haskell}
-arrMSync :: (a -> m b) -> SyncSF m cl a b
+arrMCl :: (a -> m b) -> SyncSF m cl a b
 ...
 \end{minted}
 \end{block}
 \begin{block}<+->{Time information}
 \begin{minted}{haskell}
-timeInfo :: SyncSF m cl () (TimeInfo cl)
+timeInfo :: ClSF m cl () (TimeInfo cl)
 \end{minted}
 \end{block}
 \begin{block}<+->{Basic signal processing}
 \begin{minted}{haskell}
-integral :: VectorSpace v => SyncSF m cl v v
+integral :: VectorSpace v => ClSF m cl v v
 ...
 \end{minted}
 \end{block}
@@ -188,20 +188,20 @@ newtype ExceptT e m a = ExceptT (m (Either e a))
 \begin{block}<+->{...control flow! (Thanks to Paolo Capriotti)}
 \begin{minted}{haskell}
 -- dunai, rhine (simplified)
-newtype SyncExcept m cl a b e
-  = SyncExcept (SyncSF (ExceptT e m) cl a b)
+newtype ClSFExcept m cl a b e
+  = ClSFExcept (SyncSF (ExceptT e m) cl a b)
 \end{minted}
 \end{block}
 
 \begin{block}<+->{}
 \begin{minted}{haskell}
-instance Monad m => Monad (SyncExcept m cl a b)
+instance Monad m => Monad (ClSFExcept m cl a b)
 
-throwOn' :: SyncSF (ExceptT e m) cl (Bool, e) ()
-try :: SyncSF (ExceptT e m) cl a b
-    -> SyncExcept m cl a b e
-safely :: SyncExcept m cl a b Empty -> SyncSF m cl a b
-safe :: SyncSF m cl a b -> SyncExcept m cl a b e
+throwOn' :: ClSF (ExceptT e m) cl (Bool, e) ()
+try :: ClSF (ExceptT e m) cl a b
+    -> ClSFExcept m cl a b e
+safely :: ClSFExcept m cl a b Empty -> SyncSF m cl a b
+safe :: ClSF m cl a b -> SyncExcept m cl a b e
 \end{minted}
 \end{block}
 \end{frame}
@@ -211,13 +211,13 @@ safe :: SyncSF m cl a b -> SyncExcept m cl a b e
 \begin{minted}{haskell}
 type SumClock = Millisecond 100
 
-fillUp :: SyncSF (ExceptT Double m) SumClock Double ()
+fillUp :: ClSF (ExceptT Double m) SumClock Double ()
 fillUp = proc x -> do
   s <- integral -< x
   _ <- throwOn' -< (s > 5, s)
   returnA       -< ()
 
-helloWorld :: SyncExcept IO SumClock () () Empty
+helloWorld :: ClSFExcept IO SumClock () () Empty
 helloWorld = do
   try $ arr (const 1) >>> fillUp
   once_ $ putStrLn "Hello World!"
@@ -231,9 +231,9 @@ main = flow $ safely helloWorld @@ waitClock
 \begin{frame}[fragile]
 \begin{block}{Clock safety}
 \begin{minted}{haskell}
-fastSignal    :: SyncSF m FastClock () a
+fastSignal    :: ClSF m FastClock () a
 
-slowProcessor :: SyncSF m SlowClock    a b
+slowProcessor :: ClSF m SlowClock    a b
 
 clockTypeError = fastSignal >>> slowProcessor
 \end{minted}
@@ -318,9 +318,9 @@ flow :: Rhine m cl () () -> m ()
 \begin{block}<+->{Synchronous subsystems}
 \begin{minted}{haskell}
 cl :: MyClock
-syncsf :: SyncSF m MyClock A B
-rhineSync :: Rhine m MyClock A B
-rhineSync = syncsf @@ cl
+syncsf :: ClSF m MyClock A B
+rhineCl :: Rhine m MyClock A B
+rhineCl = syncsf @@ cl
 \end{minted}
 \end{block}
 \end{frame}
@@ -330,8 +330,8 @@ rhineSync = syncsf @@ cl
 \begin{minted}{haskell}
 clL :: MyClockL
 clR :: MyClockR
-syncsfL :: SyncSF m MyClockL C D
-syncsfR :: SyncSF m MyClockR C D
+syncsfL :: ClSF m MyClockL C D
+syncsfR :: ClSF m MyClockR C D
 schedPar :: Schedule m MyClockL MyClockR
 rhinePar = syncsfL @@ clL **@ schedPar @** syncsfR @@ clR
 \end{minted}
@@ -340,7 +340,7 @@ rhinePar = syncsfL @@ clL **@ schedPar @** syncsfR @@ clR
 \begin{minted}{haskell}
 buf :: ResamplingBuffer m MyClock (Leftmost (..)) B C
 schedSeq :: Schedule m ...
-rhineSeq = rhineSync >-- buf -@- schedSeq --> rhineP
+rhineSeq = rhineCl >-- buf -@- schedSeq --> rhineP
 \end{minted}
 \end{block}
 \end{frame}

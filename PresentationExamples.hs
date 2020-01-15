@@ -6,11 +6,10 @@
 
 -- dunai
 import Data.MonadicStreamFunction
-import Data.VectorSpace.Specific()
 
 -- rhine
 import FRP.Rhine
-import FRP.Rhine.SyncSF.Except
+import FRP.Rhine.ClSF.Except
 import FRP.Rhine.Clock.Realtime.Millisecond
 
 ---------------------------
@@ -23,7 +22,7 @@ verboseSum = proc n -> do
 
 
 main1 = reactimate
-  $   arrM_ (putStrLn "Enter a number:" >> readLn)
+  $   (arrM $ const $ putStrLn "Enter a number:" >> readLn)
   >>> verboseSum
   >>> arr (const ())
 
@@ -31,13 +30,13 @@ main1 = reactimate
 
 type SumClock = Millisecond 100
 
-fillUp :: Monad m => SyncSF (ExceptT Double m) SumClock Double ()
+fillUp :: Monad m => ClSF (ExceptT Double m) SumClock Double ()
 fillUp = proc x -> do
   s <- integral -< x
   _ <- throwOn' -< (s > 5, s)
   returnA       -< ()
 
-helloWorld :: SyncExcept IO SumClock () () Empty
+helloWorld :: ClSFExcept IO SumClock () () Empty
 helloWorld = do
   try $ arr (const 1) >>> fillUp
   once_ $ putStrLn "Hello World!"
@@ -49,20 +48,20 @@ main = flow $ safely helloWorld @@ waitClock
 
 data FastClock = FastClock
 instance Clock m FastClock where
-  type TimeDomainOf FastClock = ()
+  type Time FastClock = ()
   type Tag          FastClock = ()
-  startClock = undefined
+  initClock = undefined
 
 data SlowClock = SlowClock
 instance Clock m SlowClock where
-  type TimeDomainOf SlowClock = ()
+  type Time SlowClock = ()
   type Tag          SlowClock = ()
-  startClock = undefined
+  initClock = undefined
 
-fastSignal :: SyncSF m FastClock () a
+fastSignal :: ClSF m FastClock () a
 fastSignal = undefined
 
-slowProcessor :: SyncSF m SlowClock b c
+slowProcessor :: ClSF m SlowClock b c
 slowProcessor = undefined
 
 -- uncomment the following for a clock type error

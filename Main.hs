@@ -2,22 +2,21 @@
 {-# LANGUAGE DataKinds       #-}
 {-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections   #-}
 {-# LANGUAGE TypeFamilies    #-}
 
 
 -- base
 import Control.Concurrent (threadDelay)
-import Data.Either (rights)
 import System.IO (hFlush, stdout)
 import Text.Read (readMaybe)
 
 -- dunai
-import Control.Monad.Trans.MSF.Maybe (runMaybeT, MaybeT, exit)
-
+import Control.Monad.Trans.MSF.Maybe (runMaybeT, MaybeT (MaybeT), exit)
+import qualified Control.Monad.Trans.MSF.Except as Dunai
 
 -- rhine
 import FRP.Rhine
-import FRP.Rhine.SyncSF.Except
 import FRP.Rhine.Clock.Realtime.Millisecond
 import FRP.Rhine.Clock.Realtime.Stdin
 import FRP.Rhine.Clock.Select
@@ -36,10 +35,18 @@ main = do
 
 mainRhine :: Rhine (MaybeT IO) (LiftClock IO MaybeT (Millisecond 50)) () ()
 mainRhine =   timeless (listToMaybeS "Congratulations! You've installed the tutorial correctly!\n")
-          >-> liftS (putChar >>> (>> hFlush stdout))
+          >-> arrMCl oneCharacter
           @@  liftClock waitClock
 
+oneCharacter :: Char -> MaybeT IO ()
+oneCharacter c = liftIO $ do
+  putChar c
+  hFlush stdout
 
--- TODO In dunai 0.1.2
-listToMaybeS :: Monad m => [b] -> MSF (MaybeT m) a b
-listToMaybeS = foldr iPost exit
+-- bug #170 in dunai-0.5.1
+
+exceptToMaybeS :: Monad m => MSF (ExceptT e m) a b -> MSF (MaybeT m) a b
+exceptToMaybeS = morphS $ MaybeT . fmap (either (const Nothing) Just) . runExceptT
+
+listToMaybeS :: Monad m => [a] -> MSF (MaybeT m) arbitrary a
+listToMaybeS = exceptToMaybeS . runMSFExcept . sequence . map (Dunai.step . const . return . (, ()))

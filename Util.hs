@@ -3,6 +3,7 @@ module Util where
 -- dunai
 import Control.Monad.Trans.MSF.Except
 import Data.MonadicStreamFunction
+import Data.MonadicStreamFunction.InternalCore
 
 -- | Accumulates inputs and starts an MSF for each of them
 pool :: Monad m => (a -> MSF m () b) -> MSF m [a] [b]
