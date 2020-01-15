@@ -296,9 +296,9 @@ Buffer data at the boundary between two asynchronous systems.
 \begin{frame}[fragile]
 \begin{block}<+->{Asynchronous signal functions}
 \begin{minted}{haskell}
-data SF m cl a b
-type family Leftmost cl
-type family Rightmost cl
+data SN m cl a b -- Signal network
+type family In cl
+type family Out cl
 \end{minted}
 \end{block}
 \begin{block}<+->{A clocked reactive program}
@@ -318,9 +318,9 @@ flow :: Rhine m cl () () -> m ()
 \begin{block}<+->{Synchronous subsystems}
 \begin{minted}{haskell}
 cl :: MyClock
-syncsf :: ClSF m MyClock A B
+sf :: ClSF m MyClock A B
 rhineCl :: Rhine m MyClock A B
-rhineCl = syncsf @@ cl
+rhineCl = sf @@ cl
 \end{minted}
 \end{block}
 \end{frame}
@@ -330,15 +330,15 @@ rhineCl = syncsf @@ cl
 \begin{minted}{haskell}
 clL :: MyClockL
 clR :: MyClockR
-syncsfL :: ClSF m MyClockL C D
-syncsfR :: ClSF m MyClockR C D
+sfL :: ClSF m MyClockL C D
+sfR :: ClSF m MyClockR C D
 schedPar :: Schedule m MyClockL MyClockR
-rhinePar = syncsfL @@ clL **@ schedPar @** syncsfR @@ clR
+rhinePar = sfL @@ clL **@ schedPar @** syncsfR @@ clR
 \end{minted}
 \end{block}
 \begin{block}<+->{Sequential composition}
 \begin{minted}{haskell}
-buf :: ResamplingBuffer m MyClock (Leftmost (..)) B C
+buf :: ResamplingBuffer m MyClock (In (..)) B C
 schedSeq :: Schedule m ...
 rhineSeq = rhineCl >-- buf -@- schedSeq --> rhineP
 \end{minted}
@@ -442,7 +442,7 @@ rhineSeq = rhineCl >-- buf -@- schedSeq --> rhineP
 
 \subsection{More information}
 
-\begin{frame}
+\begin{frame}[fragile]
 	\begin{block}<+->{\texttt{Dunai}}
 		\begin{itemize}[<+->]
 			\item  \href{https://github.com/ivanperez-keera/dunai}{github.com/ivanperez-keera/dunai}
@@ -451,11 +451,11 @@ rhineSeq = rhineCl >-- buf -@- schedSeq --> rhineP
 	\end{block}
 	\begin{block}<+->{\texttt{Rhine}}
 		\begin{itemize}[<+->]
-			\item \href{https://github.com/turion/rhine-tutorial/}{github.com/turion/rhine-tutorial/}
+			\item Article: \href{https://github.com/turion/rhine#documentation}{github.com/turion/rhine\#documentation}
+			\item This tutorial: \href{https://github.com/turion/rhine-tutorial/}{github.com/turion/rhine-tutorial/}
 			\item Checkout branch \texttt{final} for solutions
 			\item Documentation on hackage
 			\item Simple examples in \href{https://github.com/turion/rhine/}{github.com/turion/rhine/}
-			\item An article, eventually to appear somewhere...
 		\end{itemize}
 	\end{block}
 \end{frame}
