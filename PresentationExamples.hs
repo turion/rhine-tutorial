@@ -16,9 +16,9 @@ import FRP.Rhine.Clock.Realtime.Millisecond
 
 verboseSum :: MSF IO Int Int
 verboseSum = proc n -> do
-  s <- sumS       -< n
+  s <- accumulateWith (+) 0 -< n
   _ <- arrM print -< "The sum is now " ++ show s
-  returnA         -< s
+  returnA -< s
 
 
 main1 = reactimate
