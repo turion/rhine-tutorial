@@ -158,7 +158,7 @@ type ClSF m cl a b = MSF (ReaderT (TimeInfo cl) m) a b
 \end{block}
 \begin{block}<+->{Lifting \texttt{dunai} concepts}
 \begin{minted}{haskell}
-arrMCl :: (a -> m b) -> SyncSF m cl a b
+arrMCl :: (a -> m b) -> ClSF m cl a b
 ...
 \end{minted}
 \end{block}
@@ -189,7 +189,7 @@ newtype ExceptT e m a = ExceptT (m (Either e a))
 \begin{minted}{haskell}
 -- dunai, rhine (simplified)
 newtype ClSFExcept m cl a b e
-  = ClSFExcept (SyncSF (ExceptT e m) cl a b)
+  = ClSFExcept (ClSF (ExceptT e m) cl a b)
 \end{minted}
 \end{block}
 
@@ -200,7 +200,7 @@ instance Monad m => Monad (ClSFExcept m cl a b)
 throwOn' :: ClSF (ExceptT e m) cl (Bool, e) ()
 try :: ClSF (ExceptT e m) cl a b
     -> ClSFExcept m cl a b e
-safely :: ClSFExcept m cl a b Empty -> SyncSF m cl a b
+safely :: ClSFExcept m cl a b Empty -> ClSF m cl a b
 safe :: ClSF m cl a b -> SyncExcept m cl a b e
 \end{minted}
 \end{block}
@@ -333,7 +333,7 @@ clR :: MyClockR
 sfL :: ClSF m MyClockL C D
 sfR :: ClSF m MyClockR C D
 schedPar :: Schedule m MyClockL MyClockR
-rhinePar = sfL @@ clL **@ schedPar @** syncsfR @@ clR
+rhinePar = sfL @@ clL **@ schedPar @** sfR @@ clR
 \end{minted}
 \end{block}
 \begin{block}<+->{Sequential composition}
